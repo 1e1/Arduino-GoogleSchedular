@@ -1,7 +1,5 @@
 # Google Schedular
 
-## Arduino Libraries
-
 Use your Google Calendar as a Scheduler for your Arduino projects.
 
 

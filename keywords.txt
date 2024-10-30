@@ -1,0 +1,10 @@
+GoogleSchedular	            KEYWORD1    DATA_TYPE
+
+
+GoogleOAuth2	            KEYWORD1    DATA_TYPE
+requestDeviceAndUserCode    KEYWORD2
+pollAuthorization	        KEYWORD2
+refreshAccessToken	        KEYWORD2
+
+
+GoogleApiCalendar	        KEYWORD1    DATA_TYPE
