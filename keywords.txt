@@ -1,10 +1,19 @@
 GoogleSchedular	            KEYWORD1    DATA_TYPE
-
-
-GoogleOAuth2	            KEYWORD1    DATA_TYPE
-requestDeviceAndUserCode    KEYWORD2
-pollAuthorization	        KEYWORD2
-refreshAccessToken	        KEYWORD2
+getEventList                KEYWORD2
+startRegistration           KEYWORD2
+validateRegistration        KEYWORD2
+hasAuthorization            KEYWORD2
+maintainEveryMinute         KEYWORD2
+syncAt                      KEYWORD2
 
 
 GoogleApiCalendar	        KEYWORD1    DATA_TYPE
+getCalendars                KEYWORD2
+getEvents                   KEYWORD2
+
+
+GoogleOAuth2	            KEYWORD1    DATA_TYPE
+Response	                KEYWORD3
+requestDeviceAndUserCode    KEYWORD2
+pollAuthorization	        KEYWORD2
+refreshAccessToken	        KEYWORD2
