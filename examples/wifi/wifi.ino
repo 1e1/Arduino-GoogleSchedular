@@ -104,21 +104,11 @@ void loop()
 
         digitalWrite(LED_BUILTIN, LOW);
 
-        Serial.printf("[HW] Free heap: %d bytes\n", ESP.getFreeHeap());
-    } else {
-        delay(100);
-    }
-
-    if (ntp.listen()) {
-        ntp.syncRFC3339();
-
+        ntp.syncRFC3339(timer1mn.getElapsedTime());
         String ts = ntp.getTimestampRFC3339();
 
         Serial.print("-- ");
         Serial.println(ts);
-
-        digitalWrite(LED_BUILTIN, HIGH);
-
         if (gs.syncAt(ts)) {
             for(String e : gs.getEventList()) {
                 Serial.println("- " + e);
@@ -128,8 +118,15 @@ void loop()
         }
 
         Serial.println("----------");
+        Serial.printf("[HW] Free heap: %d bytes\n", ESP.getFreeHeap());
+        Serial.println("----------");
         Serial.flush();
+
+    } else {
+        delay(100);
     }
+
+    ntp.listen();
 }
 
 void crash()
