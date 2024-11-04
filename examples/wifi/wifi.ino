@@ -125,7 +125,7 @@ void setup()
             String code; 
             gs.startRegistration(url, code);
 
-            if (gs.getState() != GoogleSchedular::INIT) {
+            if (!gs.isInitialized()) {
                 Serial.println("*** CRASH startRegistration() ***");
                 crash();
             }
@@ -153,10 +153,10 @@ void setup()
 
                 ntp.listen();
                 gs.maintain();
-            } while(gs.getState() == GoogleSchedular::INIT);
+            } while(gs.isInitialized());
             Serial.println();
 
-            if (gs.getState() != GoogleSchedular::READY) {
+            if (!gs.isAuthenticated()) {
                 Serial.println("*** CRASH handleRegistration() ***");
                 crash();
             }
@@ -168,7 +168,7 @@ void setup()
         Serial.println("'");
         {
             gs.setCalendar(CALENDAR_NAME);
-            if (gs.getState() != GoogleSchedular::RUN) {
+            if (!gs.isLinked()) {
                 Serial.println("*** CRASH setCalendar() ***");
                 crash();
             }
@@ -216,7 +216,7 @@ void loop()
         Serial.println("----------");
         Serial.flush();
 
-        if (gs.getState() == GoogleSchedular::ERROR) {
+        if (gs.hasFailed()) {
             Serial.println("*** CRASH ***");
             crash();
         }
