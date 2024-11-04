@@ -9,7 +9,7 @@ class GoogleApiCalendar : public GoogleOAuth2 {
 
     public: 
     
-    static constexpr const char SCOPE[] PROGMEM = "https://www.googleapis.com/auth/calendar.readonly";
+    static constexpr char SCOPE[] PROGMEM = "https://www.googleapis.com/auth/calendar.readonly";
 
 
     GoogleApiCalendar(const String& clientId, const String& clientSecret): GoogleOAuth2(clientId, clientSecret) {}

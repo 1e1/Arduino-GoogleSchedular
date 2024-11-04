@@ -18,18 +18,67 @@
 #include "GoogleApiCalendar.hpp"
 
 
+#ifndef SCHEDULAR_NAME_SEPARATOR
+#define SCHEDULAR_NAME_SEPARATOR ','
+#endif
+
+
 class GoogleSchedular : public GoogleApiCalendar {
 
     public:
 
-    GoogleSchedular(const String& clientId, const String& clientSecret, const TimestampRFC3339Ntp &ts, const String& calendar) : GoogleApiCalendar(clientId, clientSecret), _calendar(calendar), _timestamp(ts), _accessTokenValidityCounter(0), _eventList() {}
+    enum State {
+        VOID,
+        INIT,
+        READY,
+        RUN,
+        ERROR,
+    };
+
+    static constexpr uint8_t EXPIRATION_TIME_MARGIN = 64;
+
+
+    GoogleSchedular(const String& clientId, const String& clientSecret, TimestampRFC3339Ntp& ts) : GoogleApiCalendar(clientId, clientSecret), _timestamp(ts), _expirationTimestamp(0), _state(State::VOID), _eventList() {}
+
+    void setCalendar(String calendarName)
+    {
+        if (this->_state != State::READY) {
+            return;
+        }
+
+        JsonDocument doc;
+        GoogleOAuth2::Response ret = this->getCalendars(doc);
+
+        if (ret == GoogleOAuth2::OK) {
+            JsonArray items = doc[F("items")].as<JsonArray>();
+            for (JsonObject item : items) {
+                if (calendarName.equals(item[F("summary")].as<String>())) {
+                    this->_calendarId = item[F("id")].as<String>();
+                    this->_state = State::RUN;
+                    break;
+                }
+            }
+        }
+    }
+
+    const GoogleSchedular::State getState(void)
+    {
+        return this->_state;
+    }
 
     std::list<String>getEventList(void) {
         return this->_eventList;
     }
 
+    const boolean hasAuthorization(void)
+    {
+        return this->_timestamp.getTimestampUnix() < this->_expirationTimestamp;
+    }
+
     void startRegistration(String& url, String& code)
     {
+        this->_state = State::VOID;
+
         String scope = FPSTR(GoogleApiCalendar::SCOPE);
         JsonDocument doc;
         GoogleOAuth2::Response ret = this->requestDeviceAndUserCode(doc, scope);
@@ -38,73 +87,71 @@ class GoogleSchedular : public GoogleApiCalendar {
             url  = doc[F("verification_url")].as<String>();
             code = doc[F("user_code")].as<String>();
 
-            this->_accessTokenValidityCounter = doc[F("interval")];
+            uint8_t interval = doc[F("interval")];
+            this->_calendarId = String(interval);
+
+            this->_setExpirationTimestamp(interval);
+            this->_state = State::INIT;
         }
     }
 
 
-    void validateRegistration(void)
+    void handleRegistration(void)
     {
-        unsigned long now = millis();
-        unsigned long nextInterval;
-        JsonDocument doc;
+        if (this->_expirationTimestamp < this->_timestamp.getTimestampUnix()) {
+            JsonDocument doc;
+            GoogleOAuth2::Response ret = this->pollAuthorization(doc);
 
-        uint16_t interval = 1000 * this->_accessTokenValidityCounter;
-
-        GoogleOAuth2::Response ret = GoogleOAuth2::PENDING;
-        nextInterval = now + interval;
-        
-        do {
-            delay(500);
-            now = millis();
-            if (nextInterval < now) {
-                ret = this->pollAuthorization(doc);
-
-                nextInterval = now + interval;
+            switch (ret) {
+                case GoogleOAuth2::PENDING: {
+                    uint8_t interval = this->_calendarId.toInt();
+                    this->_setExpirationTimestamp(interval);
+                    break;
+                }
+                case GoogleOAuth2::OK: {
+                    const uint16_t expiresInSeconds = doc[F("expires_in")];
+                    this->_setSecureExpirationTimestamp(expiresInSeconds);
+                    this->_state = State::READY;
+                    break;
+                }
+                default: {
+                    this->_setExpirationTimestamp(0);
+                    this->_state = State::ERROR;
+                }
             }
-        } while (ret == GoogleOAuth2::PENDING);
-        
-        if (ret == GoogleOAuth2::OK) {
-            const uint16_t expiresInSeconds = doc[F("expires_in")];
-            this->_resetValidAccessTokenCounter(expiresInSeconds);
-
-            ret = this->getCalendars(doc);
-
-            if (ret == GoogleOAuth2::OK) {
-                this->_setCalendar(doc);
-            }
-        } else {
-            this->_accessTokenValidityCounter = 0;
         }
     }
 
-
-    const boolean hasAuthorization(void)
+    void maintain(void)
     {
-        return this->_accessTokenValidityCounter > 0;
+        switch (this->_state) {
+            case State::RUN:
+            case State::READY:
+                this->maintainAuthorization(false);
+                break;
+            case State::INIT:
+                this->handleRegistration();
+                break;
+        }
     }
 
-
-    const bool maintainEveryMinute(void)
+    const boolean maintainAuthorization(const boolean force=false)
     {
-        if (!this->hasAuthorization()) {
+        if (force || !this->hasAuthorization()) {
             JsonDocument doc;
             GoogleOAuth2::Response ret = this->refreshAccessToken(doc);
             if (ret == GoogleOAuth2::OK) {
                 const uint16_t expiresInSeconds = doc[F("expires_in")];
-                this->_resetValidAccessTokenCounter(expiresInSeconds);
+                this->_setSecureExpirationTimestamp(expiresInSeconds);
             } else {
-                return false;
+                this->_state = State::ERROR;
             }
         }
 
-        this->_accessTokenValidityCounter--;
-
-        return true;
+        return this->_state == State::RUN;
     }
 
-
-    const boolean syncAt(String& ts)
+    void syncAt(String& ts)
     {
         const char org = ts[17];
 
@@ -113,54 +160,53 @@ class GoogleSchedular : public GoogleApiCalendar {
         t0.setCharAt(18, '0');
         ts.setCharAt(18, '9');
 
-        GoogleOAuth2::Response ret = this->getEvents(doc, this->_calendar, t0, ts);
+        GoogleOAuth2::Response ret = this->getEvents(doc, this->_calendarId, t0, ts);
 
         ts.setCharAt(17, org);
 
         if (ret != GoogleOAuth2::OK) {
-            return false;
+            this->_state = State::ERROR;
         }
 
         this->_eventList.clear();
 
         for (JsonObject item : doc[F("items")].as<JsonArray>()) {
-            // this->_eventList.emplace_back(item["summary"].as<String>());
+            // String summary = item["summary"].as<String>();
             // !!! valid by &fields=items(summary) only !!!
-            this->_eventList.emplace_back(item.begin()->value().as<String>());
-        }
+            String summary = item.begin()->value().as<String>();
+            this->_eventList.push_back(summary);
+            /*
+            uint8_t startIndex = 0;
+            uint8_t endIndex;
+            do {
+                endIndex = summary.indexOf('\n', startIndex);
+                String line = summary.substring(startIndex, endIndex).trim();
 
-        return true;
+                this->_eventList.push_back(line);
+                startIndex = endIndex + 1;
+            } while (endIndex != -1);
+            */
+        }
     }
 
 
     protected:
 
-    void _resetValidAccessTokenCounter(const uint16_t expiresInSeconds)
+    void _setExpirationTimestamp(const uint16_t expiresInSeconds)
     {
-        const uint8_t minuteInSeconds = 60;
-        if (expiresInSeconds > ((uint8_t) -1) * minuteInSeconds) {
-            this->_accessTokenValidityCounter = -1;
-        } else {
-            this->_accessTokenValidityCounter = expiresInSeconds / minuteInSeconds;
-        }
+        this->_expirationTimestamp = this->_timestamp.getTimestampUnix(expiresInSeconds);
     }
 
-
-    void _setCalendar(JsonDocument doc)
+    void _setSecureExpirationTimestamp(const uint16_t expiresInSeconds)
     {
-        JsonArray items = doc[F("items")].as<JsonArray>();
-        for (JsonObject item : items) {
-            if (this->_calendar.equals(item[F("summary")].as<String>())) {
-                this->_calendar = item[F("id")].as<String>();
-                return;
-            }
-        }
+        this->_expirationTimestamp = this->_timestamp.getTimestampUnix(expiresInSeconds - GoogleSchedular::EXPIRATION_TIME_MARGIN);
     }
 
     
-    String _calendar;
-    TimestampRFC3339Ntp _timestamp;
-    uint8_t _accessTokenValidityCounter;
+    State _state;
+    String _calendarId;
+    TimestampRFC3339Ntp& _timestamp;
+    unsigned long _expirationTimestamp;
     std::list<String> _eventList;
 
 };
