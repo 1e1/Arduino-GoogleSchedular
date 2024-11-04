@@ -25,12 +25,12 @@ const char* NTP_HOST = "2.europe.pool.ntp.org";
 const String CALENDAR_NAME = "ArduinoRelay";
 
 
-
 WiFiUDP udp;
 TimestampRFC3339Ntp ntp(udp);
-ShortTimer8<ShortTimer_precision_t::P_minutes> timer1mn;
-GoogleSchedular gs(GOOGLE_API_CLIENT_ID, GOOGLE_API_CLIENT_SECRET, ntp, CALENDAR_NAME);
+GoogleSchedular gs(GOOGLE_API_CLIENT_ID, GOOGLE_API_CLIENT_SECRET, ntp);
 
+
+ShortTimer8<ShortTimer_precision_t::P_minutes> timer1mn;
 
 
 void setup()
@@ -38,33 +38,46 @@ void setup()
     pinMode(LED_BUILTIN, OUTPUT);
     digitalWrite(LED_BUILTIN, HIGH); 
 
-    // Open serial communications and wait for port to open:
-    Serial.begin(9600);
-    while (!Serial) {
-        ; // wait for serial port to connect. Needed for native USB port only
+    // start Serial
+    {
+        Serial.begin(9600);
+        while (!Serial) {
+            delay(5);
+        }
+        Serial.flush();
+        Serial.println("Serial OK");
     }
-    Serial.flush();
 
-
-    WiFi.begin(STASSID, STAPSK);
-    while (WiFi.status() != WL_CONNECTED) {
-        Serial.print('.');
-        delay(500);
+    // start WiFi
+    {
+        WiFi.begin(STASSID, STAPSK);
+        while (WiFi.status() != WL_CONNECTED) {
+            Serial.print('.');
+            delay(500);
+        }
+        Serial.println("WiFi connected");
     }
-    Serial.println();
 
     // start UDP
-    udp.begin(LOCAL_PORT);
+    {
+        udp.begin(LOCAL_PORT);
+        ntp.request(NTP_HOST);
+        do {
+            delay(10);
+        } while(!ntp.listenSync());
+        String ts = ntp.getTimestampRFC3339();
+        Serial.println(ts);
+    }
     
     Serial.println("+-- GOOGLE ---");
     {
-        Serial.println("|- starting registration...");
+        Serial.println("|- starting registration");
         {
             String url;
             String code; 
             gs.startRegistration(url, code);
 
-            if (!gs.hasAuthorization()) {
+            if (gs.getState() != GoogleSchedular::INIT) {
                 Serial.println("*** CRASH startRegistration() ***");
                 crash();
             }
@@ -73,17 +86,57 @@ void setup()
             Serial.print("| +- CODE: "); Serial.println(code);
             Serial.flush();
         }
-        Serial.println("|- waiting for validation...");
+        Serial.print("|- waiting for validation");
         {
-            gs.validateRegistration();
+            uint8_t line_size = 25;
+            FastTimer<FastTimer_precision_t::P_1s_4m> timer1s;
+            do {
+                timer1s.update();
+                if (timer1s.isTickBy64()) {
+                    ntp.request(NTP_HOST);
+                    if (++line_size >= 80) {
+                        Serial.println();
+                        line_size = 0;
+                    }
+                    Serial.print('.');
+                }
 
-            if (!gs.hasAuthorization()) {
-                Serial.println("*** CRASH validateRegistration() ***");
+                delay(5000);
+
+                ntp.listen();
+                gs.maintain();
+            } while(gs.getState() == GoogleSchedular::INIT);
+            Serial.println();
+
+            if (gs.getState() != GoogleSchedular::READY) {
+                Serial.println("*** CRASH handleRegistration() ***");
+                crash();
+            }
+            Serial.println("+- CONNECTED");
+            Serial.flush();
+        }
+        Serial.print("|- getting calendar '");
+        Serial.print(CALENDAR_NAME);
+        Serial.println("'");
+        {
+            gs.setCalendar(CALENDAR_NAME);
+            if (gs.getState() != GoogleSchedular::RUN) {
+                Serial.println("*** CRASH setCalendar() ***");
                 crash();
             }
 
-            Serial.println("+- CONNECTED");
+            Serial.println("+- DONE");
             Serial.flush();
+        }
+        Serial.println("|- load events");
+        {
+            ntp.syncRFC3339();
+            String ts = ntp.getTimestampRFC3339();
+            gs.syncAt(ts);
+            for(String e : gs.getEventList()) {
+                Serial.println("|- " + e);
+            }
+            Serial.println("+-----------");
         }
 
     }
@@ -95,12 +148,8 @@ void setup()
 void loop()
 {
     if (timer1mn.hasChanged()) {
-        // ?.maintain()?
+        gs.maintain();
         ntp.request(NTP_HOST);
-        if (!gs.maintainEveryMinute()) {
-            Serial.println("*** CRASH refreshing access_token ***");
-            crash();
-        }
 
         digitalWrite(LED_BUILTIN, LOW);
 
@@ -109,12 +158,9 @@ void loop()
 
         Serial.print("-- ");
         Serial.println(ts);
-        if (gs.syncAt(ts)) {
-            for(String e : gs.getEventList()) {
-                Serial.println("- " + e);
-            }
-        } else {
-            Serial.println("| FAILED |");
+        gs.syncAt(ts);
+        for(String e : gs.getEventList()) {
+            Serial.println("- " + e);
         }
 
         Serial.println("----------");
@@ -122,6 +168,10 @@ void loop()
         Serial.println("----------");
         Serial.flush();
 
+        if (gs.getState() == GoogleSchedular::ERROR) {
+            Serial.println("*** CRASH ***");
+            crash();
+        }
     } else {
         delay(100);
     }

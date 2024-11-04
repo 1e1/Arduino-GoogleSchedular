@@ -26,35 +26,98 @@ Official explanations:
 
 ## Run
 
-- Retrieve the user_code to give to your user:
-  ````
-ArduinoJson doc;
-GoogleOAuth2::Response ret = gs->requestDeviceAndUserCode(doc, GoogleApiCalendar::SCOPE);
-  ```
-  ```
-device_code     : this unique device
-expires_in      : uint16_t  in seconds, lifetime of this data
-interval        : uint8_t   in seconds, pool interval for checking the user response
-user_code       : char[15]  what the user must fill on the given URL
-verification_url: string    envoyer l'utilisateur dessus, QRCODE?
-  ```
-- Loop for getting the user authorization:
-  `GoogleOAuth2::Response ret = gs->pollAuthorization(doc);`
-  Meanwhile, open a browser on the given URL (https://google.com/device) and authenticate yourself 
-  (with an email registered in the test program if your application is not published)
-- List the user calendars:
-  `gs->getCalendars(doc);`
-  ```
-items[] =
-    id      : GoogleID
-    summary : calendar title
-  ```
-- List events between two datetimes:
-  `gs->getEvents(doc, calendarId, "2020-12-31T20:00:00Z", "2020-12-31T21:00:00Z")`
-  ```
-items[] =
-    summary : event title
-  ```
+```
+WiFiUDP udp;
+TimestampRFC3339Ntp ntp(udp);
+GoogleSchedular gs(GOOGLE_API_CLIENT_ID, GOOGLE_API_CLIENT_SECRET, ntp);
+```
+
+
+```
+Serial.println("|- starting registration");
+{
+    String url;
+    String code; 
+    gs.startRegistration(url, code);
+
+    Serial.print("| |- URL : "); Serial.println(url);
+    Serial.print("| +- CODE: "); Serial.println(code);
+    Serial.flush();
+}
+```
+
+```
+Serial.print("|- waiting for validation");
+{
+    uint8_t line_size = 25;
+    FastTimer<FastTimer_precision_t::P_1s_4m> timer1s;
+    do {
+        timer1s.update();
+        if (timer1s.isTickBy64()) {
+            ntp.request(NTP_HOST);
+            if (++line_size >= 80) {
+                Serial.println();
+                line_size = 0;
+            }
+            Serial.print('.');
+        } else {
+            delay(100);
+        }
+
+        ntp.listen();
+        gs.maintain();
+    } while(gs.getState() == GoogleSchedular::INIT);
+    Serial.println();
+    Serial.println("+- CONNECTED");
+    Serial.flush();
+```
+
+```
+Serial.print("|- getting calendar '");
+Serial.print(CALENDAR_NAME);
+Serial.println("'");
+gs.setCalendar(CALENDAR_NAME);
+Serial.println("+- DONE");
+Serial.flush();
+```
+
+```
+Serial.println("|- load events");
+{
+    ntp.syncRFC3339();
+    String ts = ntp.getTimestampRFC3339();
+    gs.syncAt(ts);
+    for(String e : gs.getEventList()) {
+        Serial.println("|- " + e);
+    }
+    Serial.println("+-----------");
+}
+```
+
+```
+void loop()
+{
+    if (timer1mn.hasChanged()) {
+        ntp.request(NTP_HOST);
+
+        ntp.syncRFC3339(timer1mn.getElapsedTime());
+        String ts = ntp.getTimestampRFC3339();
+
+        Serial.print("-- ");
+        Serial.println(ts);
+        gs.syncAt(ts);
+        for(String e : gs.getEventList()) {
+            Serial.println("- " + e);
+        }
+        Serial.flush();
+    } else {
+        delay(100);
+    }
+
+    ntp.listen();
+    gs.maintain();
+}
+```
 
 
 ## Limitations

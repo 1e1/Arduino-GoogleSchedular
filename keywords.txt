@@ -1,9 +1,12 @@
 GoogleSchedular	            KEYWORD1    DATA_TYPE
+setCalendar                 KEYWORD2
+getState                    KEYWORD2
 getEventList                KEYWORD2
-startRegistration           KEYWORD2
-validateRegistration        KEYWORD2
 hasAuthorization            KEYWORD2
-maintainEveryMinute         KEYWORD2
+startRegistration           KEYWORD2
+handleRegistration          KEYWORD2
+maintain                    KEYWORD2
+maintainAuthorization       KEYWORD2
 syncAt                      KEYWORD2
 
 
