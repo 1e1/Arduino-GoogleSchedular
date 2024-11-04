@@ -26,6 +26,13 @@ Official explanations:
 
 ## Run
 
+As soon as you get the `verification_url` and `user_code`, go to this URL
+(most probably https://www.google.com/device)
+then authenticate with the given code and your Google Account. 
+
+
+## Code
+
 ```
 WiFiUDP udp;
 TimestampRFC3339Ntp ntp(udp);
