@@ -44,33 +44,28 @@ GoogleSchedular gs(GOOGLE_API_CLIENT_ID, GOOGLE_API_CLIENT_SECRET, ntp);
 
 Get user temporary code for merging the user account to this session.
 ```
-Serial.println("|- starting registration");
-{
-    String url;
-    String code; 
-    gs.startRegistration(url, code);
+String url;
+String code; 
+gs.startRegistration(url, code);
 
-    Serial.print("URL : "); Serial.println(url);
-    Serial.print("CODE: "); Serial.println(code);
-}
+Serial.print("URL : "); Serial.println(url);
+Serial.print("CODE: "); Serial.println(code);
 ```
 
 Waiting the refresh_access / access_token from Google when the user is authenticated on Google. 
 ```
-Serial.print("|- waiting for validation");
-{
-    FastTimer<FastTimer_precision_t::P_1s_4m> timer1s;
-    do {
-        timer1s.update();
-        if (timer1s.isTickBy64()) {
-            ntp.request(NTP_HOST);
-        } else {
-            delay(100);
-        }
+FastTimer<FastTimer_precision_t::P_1s_4m> timer1s;
+do {
+    timer1s.update();
+    if (timer1s.isTickBy64()) {
+        ntp.request(NTP_HOST);
+    } else {
+        delay(100);
+    }
 
-        ntp.listen();
-        gs.maintain();
-    } while(gs.isInitialized());
+    ntp.listen();
+    gs.maintain();
+} while(gs.isInitialized());
 ```
 
 Getting the targeted calendar identifier from its name. 
@@ -81,13 +76,12 @@ gs.setCalendar(CALENDAR_NAME);
 Generating the timestamp string, 
 then request the current event titles/summaries/labels. 
 ```
-    ntp.syncRFC3339();
-    String ts = ntp.getTimestampRFC3339();
-    gs.syncAt(ts);
+ntp.syncRFC3339();
+String ts = ntp.getTimestampRFC3339();
+gs.syncAt(ts);
 
-    for(String e : gs.getEventList()) {
-        Serial.println(e);
-    }
+for(String e : gs.getEventList()) {
+    Serial.println(e);
 }
 ```
 
