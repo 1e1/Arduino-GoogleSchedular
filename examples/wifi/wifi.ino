@@ -1,3 +1,51 @@
+/**
+  * Serial output:
+  * ```
+  * 08:30:12.635 -> ....WiFi connected
+  * 08:30:15.437 -> 2024-11-04T07:30:15Z
+  * 08:30:15.437 -> +-- GOOGLE ---
+  * 08:30:15.463 -> |- starting registration
+  * 08:30:16.552 -> | |- URL : https://www.google.com/device
+  * 08:30:16.586 -> | +- CODE: ABC-DEF-GHI
+  * 08:30:16.623 -> |- waiting for validation.......
+  * 08:30:52.577 -> +- CONNECTED
+  * 08:30:52.577 -> |- getting calendar 'ArduinoRelay'
+  * 08:30:53.802 -> +- DONE
+  * 08:30:53.802 -> |- load events
+  * 08:30:53.994 -> |- P2
+  * 08:30:53.994 -> |- P1
+  * 08:30:53.994 -> +-----------
+  * 08:30:53.994 -> *** START ***
+  * 08:31:11.085 -> -- 2024-11-04T07:30:48Z
+  * 08:31:11.387 -> - P2
+  * 08:31:11.387 -> - P1
+  * 08:31:11.387 -> ----------
+  * 08:31:11.387 -> [HW] Free heap: 19480 bytes
+  * 08:31:11.453 -> ----------
+  * 08:32:11.059 -> -- 2024-11-04T07:31:13Z
+  * 08:32:11.479 -> - P2
+  * 08:32:11.479 -> - P1
+  * 08:32:11.479 -> ----------
+  * 08:32:11.479 -> [HW] Free heap: 19480 bytes
+  * 08:32:11.511 -> ----------
+  * 08:33:10.998 -> -- 2024-11-04T07:32:14Z
+  * 08:33:11.194 -> - P2
+  * 08:33:11.194 -> - P1
+  * 08:33:11.194 -> ----------
+  * 08:33:11.194 -> [HW] Free heap: 19672 bytes
+  * 08:34:11.309 -> ----------
+  * 08:35:11.084 -> -- 2024-11-04T07:34:16Z
+  * 08:35:11.180 -> ----------
+  * 08:35:11.180 -> [HW] Free heap: 19720 bytes
+  * 08:35:11.220 -> ----------
+  * 08:36:11.055 -> -- 2024-11-04T07:35:17Z
+  * 08:36:11.222 -> ----------
+  * 08:36:11.222 -> [HW] Free heap: 19720 bytes
+  * ```
+  */
+
+
+
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
 
@@ -77,7 +125,7 @@ void setup()
             String code; 
             gs.startRegistration(url, code);
 
-            if (gs.getState() != GoogleSchedular::INIT) {
+            if (!gs.isInitialized()) {
                 Serial.println("*** CRASH startRegistration() ***");
                 crash();
             }
@@ -105,10 +153,10 @@ void setup()
 
                 ntp.listen();
                 gs.maintain();
-            } while(gs.getState() == GoogleSchedular::INIT);
+            } while(gs.isInitialized());
             Serial.println();
 
-            if (gs.getState() != GoogleSchedular::READY) {
+            if (!gs.isAuthenticated()) {
                 Serial.println("*** CRASH handleRegistration() ***");
                 crash();
             }
@@ -120,7 +168,7 @@ void setup()
         Serial.println("'");
         {
             gs.setCalendar(CALENDAR_NAME);
-            if (gs.getState() != GoogleSchedular::RUN) {
+            if (!gs.isLinked()) {
                 Serial.println("*** CRASH setCalendar() ***");
                 crash();
             }
@@ -168,7 +216,7 @@ void loop()
         Serial.println("----------");
         Serial.flush();
 
-        if (gs.getState() == GoogleSchedular::ERROR) {
+        if (gs.hasFailed()) {
             Serial.println("*** CRASH ***");
             crash();
         }

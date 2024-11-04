@@ -27,12 +27,19 @@ class GoogleSchedular : public GoogleApiCalendar {
 
     public:
 
+    /* 
+    bits are CADE: 
+    - C: Calendar => has calendar.id
+    - A: Authorized => has access_token
+    - D: initializing Device=> has device_code
+    - E: Failed => has Error
+    */
     enum State {
-        VOID,
-        INIT,
-        READY,
-        RUN,
-        ERROR,
+        VOID          = B0000,
+        INIT          = B0010,
+        AUTHENTICATED = B0110,
+        LINKED        = B1110,
+        ERROR         = B0001,
     };
 
     static constexpr uint8_t EXPIRATION_TIME_MARGIN = 64;
@@ -40,39 +47,38 @@ class GoogleSchedular : public GoogleApiCalendar {
 
     GoogleSchedular(const String& clientId, const String& clientSecret, TimestampRFC3339Ntp& ts) : GoogleApiCalendar(clientId, clientSecret), _timestamp(ts), _expirationTimestamp(0), _state(State::VOID), _eventList() {}
 
+
+    const boolean hasFailed(void)       { return this->_state == State::ERROR; }
+    const boolean isInitialized(void)   { return this->_state == State::INIT;  }
+    const boolean isAuthenticated(void) { return this->_state & B0100; }
+    const boolean isLinked(void)        { return this->_state == State::LINKED; }
+
+    std::list<String>getEventList(void) { return this->_eventList; }
+
+    const boolean hasExpired(void)
+    {
+        return  this->_expirationTimestamp < this->_timestamp.getTimestampUnix();
+    }
+
     void setCalendar(String calendarName)
     {
-        if (this->_state != State::READY) {
-            return;
-        }
+        if (this->_state & State::AUTHENTICATED) {
+            JsonDocument doc;
+            GoogleOAuth2::Response ret = this->getCalendars(doc);
 
-        JsonDocument doc;
-        GoogleOAuth2::Response ret = this->getCalendars(doc);
+            if (ret == GoogleOAuth2::OK) {
+                this->_state = State::AUTHENTICATED;
 
-        if (ret == GoogleOAuth2::OK) {
-            JsonArray items = doc[F("items")].as<JsonArray>();
-            for (JsonObject item : items) {
-                if (calendarName.equals(item[F("summary")].as<String>())) {
-                    this->_calendarId = item[F("id")].as<String>();
-                    this->_state = State::RUN;
-                    break;
+                JsonArray items = doc[F("items")].as<JsonArray>();
+                for (JsonObject item : items) {
+                    if (calendarName.equals(item[F("summary")].as<String>())) {
+                        this->_calendarId = item[F("id")].as<String>();
+                        this->_state = State::LINKED;
+                        break;
+                    }
                 }
             }
-        }
-    }
-
-    const GoogleSchedular::State getState(void)
-    {
-        return this->_state;
-    }
-
-    std::list<String>getEventList(void) {
-        return this->_eventList;
-    }
-
-    const boolean hasAuthorization(void)
-    {
-        return this->_timestamp.getTimestampUnix() < this->_expirationTimestamp;
+            }
     }
 
     void startRegistration(String& url, String& code)
@@ -95,6 +101,15 @@ class GoogleSchedular : public GoogleApiCalendar {
         }
     }
 
+    void maintain(void)
+    {
+        if (this->isAuthenticated()) {
+            this->maintainAuthorization(false);
+        } else if (this->isInitialized()) {
+            this->handleRegistration();
+        }
+    }
+
 
     void handleRegistration(void)
     {
@@ -111,7 +126,7 @@ class GoogleSchedular : public GoogleApiCalendar {
                 case GoogleOAuth2::OK: {
                     const uint16_t expiresInSeconds = doc[F("expires_in")];
                     this->_setSecureExpirationTimestamp(expiresInSeconds);
-                    this->_state = State::READY;
+                    this->_state = State::AUTHENTICATED;
                     break;
                 }
                 default: {
@@ -122,22 +137,9 @@ class GoogleSchedular : public GoogleApiCalendar {
         }
     }
 
-    void maintain(void)
+    void maintainAuthorization(const boolean force=false)
     {
-        switch (this->_state) {
-            case State::RUN:
-            case State::READY:
-                this->maintainAuthorization(false);
-                break;
-            case State::INIT:
-                this->handleRegistration();
-                break;
-        }
-    }
-
-    const boolean maintainAuthorization(const boolean force=false)
-    {
-        if (force || !this->hasAuthorization()) {
+        if (force || this->hasExpired()) {
             JsonDocument doc;
             GoogleOAuth2::Response ret = this->refreshAccessToken(doc);
             if (ret == GoogleOAuth2::OK) {
@@ -147,8 +149,6 @@ class GoogleSchedular : public GoogleApiCalendar {
                 this->_state = State::ERROR;
             }
         }
-
-        return this->_state == State::RUN;
     }
 
     void syncAt(String& ts)
