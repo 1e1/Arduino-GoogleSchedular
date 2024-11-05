@@ -17,14 +17,14 @@ class GoogleApiCalendar : public GoogleOAuth2 {
     // GET https://www.googleapis.com/calendar/v3/users/me/calendarList?fields=items(id,summary)
     const GoogleOAuth2::Response getCalendars(JsonDocument& response)
     {
-        int httpCode = this->_getRequest(F("/calendar/v3/users/me/calendarList?fields=items(id,summary)&minAccessRole=reader&showHidden=true"));
+        const int httpCode = this->_getRequest(F("/calendar/v3/users/me/calendarList?fields=items(id,summary)&minAccessRole=reader&showHidden=true"));
 
         yield();
 
         GoogleOAuth2::Response ret = ERROR;
 
         if (httpCode == HTTP_CODE_OK) {
-            String payload = this->_http.getString();
+            const String payload = this->_http.getString();
             deserializeJson(response, payload);
             /*
             items[] =
@@ -42,15 +42,15 @@ class GoogleApiCalendar : public GoogleOAuth2 {
 
     const GoogleOAuth2::Response getEvents(JsonDocument& response, const String& calendarId, const String& timeMin, const String& timeMax)
     {
-        String uri = this->_buildEventsUri(calendarId, timeMin, timeMax);
-        int httpCode = this->_getRequest(uri);
+        const String uri = this->_buildEventsUri(calendarId, timeMin, timeMax);
+        const int httpCode = this->_getRequest(uri);
 
         yield();
 
         GoogleOAuth2::Response ret = ERROR;
 
         if (httpCode == HTTP_CODE_OK) {
-            String payload = this->_http.getString();
+            const String payload = this->_http.getString();
             deserializeJson(response, payload);
             /*
             items[] =
@@ -74,7 +74,7 @@ class GoogleApiCalendar : public GoogleOAuth2 {
         return this->_http.GET();
     }
 
-    const String _buildEventsUri(const String& calendarId, const String& timeMin, const String& timeMax)
+    const String _buildEventsUri(const String& calendarId, const String& timeMin, const String& timeMax) const
     {
 
         String uri = F("/calendar/v3/calendars/");

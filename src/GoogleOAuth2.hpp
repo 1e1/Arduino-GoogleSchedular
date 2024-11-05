@@ -36,7 +36,7 @@ class GoogleOAuth2 {
         GoogleOAuth2::Response ret = ERROR;
 
         if (httpCode == HTTP_CODE_OK) {
-            String payload = this->_http.getString();
+            const String payload = this->_http.getString();
             deserializeJson(response, payload);
             /*
                 device_code     : this unique device
@@ -81,7 +81,7 @@ class GoogleOAuth2 {
         }
 
         if (httpCode == HTTP_CODE_OK) {
-            String payload = this->_http.getString();
+            const String payload = this->_http.getString();
             deserializeJson(response, payload);
             /*
                 access_token    : keep that
@@ -120,7 +120,7 @@ class GoogleOAuth2 {
         GoogleOAuth2::Response ret = ERROR;
 
         if (httpCode == HTTP_CODE_OK) {
-            String payload = this->_http.getString();
+            const String payload = this->_http.getString();
             deserializeJson(response, payload);
             /*
                 access_token    : keep that
