@@ -19,6 +19,9 @@ class GoogleOAuth2 {
         this->_client.setInsecure();
     }
 
+    String getRefreshToken(void) const { return this->_refreshToken; }
+    void setRefreshToken(const String& tok) { this->_refreshToken = tok; }
+
     // POST https://oauth2.googleapis.com/device/code
     const GoogleOAuth2::Response requestDeviceAndUserCode(JsonDocument& response, const String& scope)
     {
