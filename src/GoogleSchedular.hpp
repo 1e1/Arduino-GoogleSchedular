@@ -34,7 +34,7 @@ class GoogleSchedular : public GoogleApiCalendar {
     - D: initializing Device=> has device_code
     - E: Failed => has Error
     */
-    enum State {
+    enum State: uint8_t {
         VOID          = B0000,
         INIT          = B0010,
         AUTHENTICATED = B0110,
@@ -48,10 +48,11 @@ class GoogleSchedular : public GoogleApiCalendar {
     GoogleSchedular(const String& clientId, const String& clientSecret, TimestampRFC3339Ntp& ts) : GoogleApiCalendar(clientId, clientSecret), _timestamp(ts), _expirationTimestamp(0), _state(State::VOID), _eventList() {}
 
 
-    const boolean hasFailed(void) const       { return this->_state == State::ERROR; }
-    const boolean isInitialized(void) const   { return this->_state == State::INIT;  }
-    const boolean isAuthenticated(void) const { return this->_state & B0100; }
-    const boolean isLinked(void) const        { return this->_state == State::LINKED; }
+    const boolean hasFailed(void) const           { return this->_state == State::ERROR; }
+    const boolean isInitialized(void) const       { return this->_state == State::INIT;  }
+    const boolean isAuthenticatedOnly(void) const { return this->_state == State::AUTHENTICATED; }
+    const boolean isAuthenticated(void) const     { return this->_state & B0100; }
+    const boolean isLinked(void) const            { return this->_state == State::LINKED; }
 
     std::list<String>getEventList(void) const { return this->_eventList; }
 
@@ -62,19 +63,17 @@ class GoogleSchedular : public GoogleApiCalendar {
 
     void setCalendar(String calendarName)
     {
-        if (this->_state & State::AUTHENTICATED) {
+        if (this->isAuthenticated()) {
             JsonDocument doc;
             const GoogleOAuth2::Response ret = this->getCalendars(doc);
 
             if (ret == GoogleOAuth2::OK) {
-                this->_state = State::AUTHENTICATED;
-
                 const JsonArray items = doc[F("items")].as<JsonArray>();
                 for (JsonObject item : items) {
                     if (calendarName.equals(item[F("summary")].as<String>())) {
                         this->_calendarId = item[F("id")].as<String>();
                         this->_state = State::LINKED;
-                        break;
+                        return;
                     }
                 }
             }
@@ -113,7 +112,7 @@ class GoogleSchedular : public GoogleApiCalendar {
 
     void handleRegistration(void)
     {
-        if (this->_expirationTimestamp < this->_timestamp.getTimestampUnix()) {
+        if (this->hasExpired()) {
             JsonDocument doc;
             const GoogleOAuth2::Response ret = this->pollAuthorization(doc);
 
@@ -124,7 +123,7 @@ class GoogleSchedular : public GoogleApiCalendar {
                     break;
                 }
                 case GoogleOAuth2::OK: {
-                    const uint16_t expiresInSeconds = doc[F("expires_in")];
+                    const uint16_t expiresInSeconds = doc[F("expires_in")].as<uint16_t>();
                     this->_setSecureExpirationTimestamp(expiresInSeconds);
                     this->_state = State::AUTHENTICATED;
                     break;
@@ -143,7 +142,7 @@ class GoogleSchedular : public GoogleApiCalendar {
             JsonDocument doc;
             const GoogleOAuth2::Response ret = this->refreshAccessToken(doc);
             if (ret == GoogleOAuth2::OK) {
-                const uint16_t expiresInSeconds = doc[F("expires_in")];
+                const uint16_t expiresInSeconds = doc[F("expires_in")].as<uint16_t>();
                 this->_setSecureExpirationTimestamp(expiresInSeconds);
             } else {
                 this->_state = State::ERROR;
@@ -153,41 +152,43 @@ class GoogleSchedular : public GoogleApiCalendar {
 
     void syncAt(String& ts)
     {
-        const char org = ts[17];
-
+        GoogleOAuth2::Response ret;
         JsonDocument doc;
-        String t0 = ts;
-        t0.setCharAt(18, '0');
-        ts.setCharAt(18, '9');
+        {
+            const char org = ts[17];
+            String t0 = ts;
+            t0.setCharAt(18, '0');
+            ts.setCharAt(18, '9');
 
-        const GoogleOAuth2::Response ret = this->getEvents(doc, this->_calendarId, t0, ts);
+            ret = this->getEvents(doc, this->_calendarId, t0, ts);
 
-        ts.setCharAt(17, org);
-
-        if (ret != GoogleOAuth2::OK) {
-            this->_state = State::ERROR;
+            ts.setCharAt(17, org);
         }
 
-        this->_eventList.clear();
+        if (ret == GoogleOAuth2::OK) {
+            this->_state = State::ERROR;
+        } else {
+            this->_eventList.clear();
 
-        const JsonArray items = doc[F("items")].as<JsonArray>();
+            const JsonArray items = doc[F("items")].as<JsonArray>();
 
-        for (JsonObject item : items) {
-            // String summary = item["summary"].as<String>();
-            // !!! valid by &fields=items(summary) only !!!
-            const String summary = item.begin()->value().as<String>();
-            this->_eventList.push_back(summary);
-            /*
-            uint8_t startIndex = 0;
-            uint8_t endIndex;
-            do {
-                endIndex = summary.indexOf('\n', startIndex);
-                String line = summary.substring(startIndex, endIndex).trim();
+            for (JsonObject item : items) {
+                // String summary = item["summary"].as<String>();
+                // !!! valid by &fields=items(summary) only !!!
+                const String summary = item.begin()->value().as<String>();
+                this->_eventList.push_back(summary);
+                /*
+                uint8_t startIndex = 0;
+                uint8_t endIndex;
+                do {
+                    endIndex = summary.indexOf('\n', startIndex);
+                    String line = summary.substring(startIndex, endIndex).trim();
 
-                this->_eventList.push_back(line);
-                startIndex = endIndex + 1;
-            } while (endIndex != -1);
-            */
+                    this->_eventList.push_back(line);
+                    startIndex = endIndex + 1;
+                } while (endIndex != -1);
+                */
+            }
         }
     }
 

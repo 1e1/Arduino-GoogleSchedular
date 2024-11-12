@@ -19,8 +19,6 @@ class GoogleApiCalendar : public GoogleOAuth2 {
     {
         const int httpCode = this->_getRequest(F("/calendar/v3/users/me/calendarList?fields=items(id,summary)&minAccessRole=reader&showHidden=true"));
 
-        yield();
-
         GoogleOAuth2::Response ret = ERROR;
 
         if (httpCode == HTTP_CODE_OK) {
@@ -44,8 +42,6 @@ class GoogleApiCalendar : public GoogleOAuth2 {
     {
         const String uri = this->_buildEventsUri(calendarId, timeMin, timeMax);
         const int httpCode = this->_getRequest(uri);
-
-        yield();
 
         GoogleOAuth2::Response ret = ERROR;
 
@@ -76,7 +72,6 @@ class GoogleApiCalendar : public GoogleOAuth2 {
 
     const String _buildEventsUri(const String& calendarId, const String& timeMin, const String& timeMax) const
     {
-
         String uri = F("/calendar/v3/calendars/");
         uri += calendarId;
         uri += F("/events?fields=items(summary)&singleEvents=true&timeMin=");

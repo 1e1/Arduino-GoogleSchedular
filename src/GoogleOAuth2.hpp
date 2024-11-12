@@ -8,7 +8,7 @@ class GoogleOAuth2 {
 
     public:
 
-    enum Response {
+    enum Response : uint8_t {
         ERROR,
         PENDING,
         OK,
@@ -19,7 +19,7 @@ class GoogleOAuth2 {
         this->_client.setInsecure();
     }
 
-    String getRefreshToken(void) const { return this->_refreshToken; }
+    const String& getRefreshToken(void) { return this->_refreshToken; }
     void setRefreshToken(const String& tok) { this->_refreshToken = tok; }
 
     // POST https://oauth2.googleapis.com/device/code
@@ -34,8 +34,6 @@ class GoogleOAuth2 {
             httpCode = this->_postJsonRequest(F("/device/code"), doc);
         }
 
-        yield();
-
         GoogleOAuth2::Response ret = ERROR;
 
         if (httpCode == HTTP_CODE_OK) {
@@ -48,8 +46,8 @@ class GoogleOAuth2 {
                 user_code       : char[15]  what the user must fill on the given URL
                 verification_url: string    envoyer l'utilisateur dessus, QRCODE?
             */
-            this->_refreshToken = response["device_code"].as<String>();
-            ret = OK;
+            this->_refreshToken = response[F("device_code")].as<String>();
+            return OK;
         }
 
         this->_http.end();
@@ -70,8 +68,6 @@ class GoogleOAuth2 {
 
             httpCode = this->_postJsonRequest(F("/token"), doc);
         }
-
-        yield();
 
         GoogleOAuth2::Response ret = ERROR;
 
@@ -118,8 +114,6 @@ class GoogleOAuth2 {
             httpCode = this->_postJsonRequest(F("/token"), doc);
         }
 
-        yield();
-
         GoogleOAuth2::Response ret = ERROR;
 
         if (httpCode == HTTP_CODE_OK) {
@@ -148,7 +142,7 @@ class GoogleOAuth2 {
         serializeJson(doc, payload);
         
         this->_http.begin(this->_client, F("oauth2.googleapis.com"), 443, path, true);
-        this->_http.addHeader(F("Content-Type"), F("application/json"));
+        this->_http.addHeader(F("Content-Type"), F("text/json"));
         
         return this->_http.POST(payload);
     }
