@@ -15,142 +15,119 @@ class GoogleOAuth2 {
     };
 
     
-    GoogleOAuth2(const String& clientId, const String& clientSecret) : _clientId(clientId), _clientSecret(clientSecret), _http(), _client() {
-        this->_client.setInsecure();
+    GoogleOAuth2(const String& clientId, const String& clientSecret) : _clientId(clientId), _clientSecret(clientSecret), _refreshToken(), _accessToken(), _httpClient(), _wifiClient()
+    {
+        _wifiClient.setInsecure();
+        _httpClient.useHTTP10(true);
     }
 
-    String getRefreshToken(void) const { return this->_refreshToken; }
-    void setRefreshToken(const String& tok) { this->_refreshToken = tok; }
+    String getRefreshToken(void) const { return _refreshToken; }
+    void setRefreshToken(const String& tok) { _refreshToken = tok; }
 
     // POST https://oauth2.googleapis.com/device/code
     const GoogleOAuth2::Response requestDeviceAndUserCode(JsonDocument& response, const String& scope)
     {
         int httpCode;
-        {
-            JsonDocument doc;
-            doc[F("client_id")]    = this->_clientId;
-            doc[F("scope")]        = scope;
+        JsonDocument request;
+        request[F("client_id")]    = _clientId;
+        request[F("scope")]        = scope;
 
-            httpCode = this->_postJsonRequest(F("/device/code"), doc);
+        _postJsonRequest(F("/device/code"), httpCode, response, request);
+
+        if (httpCode != HTTP_CODE_OK) {
+            return ERROR;
         }
 
-        yield();
+        /*
+            device_code     : this unique device
+            expires_in      : uint16_t  in seconds, lifetime of this data
+            interval        : uint8_t   in seconds, pool interval for checking the user response
+            user_code       : char[15]  what the user must fill on the given URL
+            verification_url: string    envoyer l'utilisateur dessus, QRCODE?
+        */
+        _refreshToken = response["device_code"].as<String>();
 
-        GoogleOAuth2::Response ret = ERROR;
-
-        if (httpCode == HTTP_CODE_OK) {
-            const String payload = this->_http.getString();
-            deserializeJson(response, payload);
-            /*
-                device_code     : this unique device
-                expires_in      : uint16_t  in seconds, lifetime of this data
-                interval        : uint8_t   in seconds, pool interval for checking the user response
-                user_code       : char[15]  what the user must fill on the given URL
-                verification_url: string    envoyer l'utilisateur dessus, QRCODE?
-            */
-            this->_refreshToken = response["device_code"].as<String>();
-            ret = OK;
-        }
-
-        this->_http.end();
-        
-        return ret;
+        return OK;
     }
     
     // POST https://oauth2.googleapis.com/token
     const GoogleOAuth2::Response pollAuthorization(JsonDocument& response)
     {
         int httpCode;
-        {
-            JsonDocument doc;
-            doc[F("client_id")]        = this->_clientId;
-            doc[F("client_secret")]    = this->_clientSecret;
-            doc[F("device_code")]      = this->_refreshToken;
-            doc[F("grant_type")]       = F("urn:ietf:params:oauth:grant-type:device_code");
+        JsonDocument request;
+        request[F("client_id")]        = _clientId;
+        request[F("client_secret")]    = _clientSecret;
+        request[F("device_code")]      = _refreshToken;
+        request[F("grant_type")]       = F("urn:ietf:params:oauth:grant-type:device_code");
 
-            httpCode = this->_postJsonRequest(F("/token"), doc);
+        _postJsonRequest(F("/token"), httpCode, response, request);
+
+        switch (httpCode) {
+            case HTTP_CODE_PRECONDITION_REQUIRED:
+                /*
+                    error           : access_denied | authorization_pending | slow_down | *
+                    error_description
+                */
+                return PENDING;
+            
+            case HTTP_CODE_OK:
+                /*
+                    access_token    : keep that
+                    expires_in      : in seconds, lifetime of access_token
+                    refresh_token   : then use this token for a new access_token
+                    scope           : // useless
+                    token_type      : Bearer
+                */
+                _refreshToken = response[F("refresh_token")].as<String>();
+                _accessToken = response[F("access_token")].as<String>();
+
+                return OK;
         }
 
-        yield();
-
-        GoogleOAuth2::Response ret = ERROR;
-
-        if (httpCode == HTTP_CODE_PRECONDITION_REQUIRED) {
-            /*
-                error           : access_denied | authorization_pending | slow_down | *
-                error_description
-            */
-           ret = PENDING;
-        }
-
-        if (httpCode == HTTP_CODE_OK) {
-            const String payload = this->_http.getString();
-            deserializeJson(response, payload);
-            /*
-                access_token    : keep that
-                expires_in      : in seconds, lifetime of access_token
-                refresh_token   : then use this token for a new access_token
-                scope           : // useless
-                token_type      : Bearer
-            */
-            this->_refreshToken = response[F("refresh_token")].as<String>();
-            this->_accessToken = response[F("access_token")].as<String>();
-
-            ret = OK;
-        }
-
-        this->_http.end();
-
-        return ret;
+        return ERROR;
     }
 
     // POST https://oauth2.googleapis.com/token
     const GoogleOAuth2::Response refreshAccessToken(JsonDocument& response)
     {
         int httpCode;
-        {
-            JsonDocument doc;
-            doc[F("client_id")]        = this->_clientId;
-            doc[F("client_secret")]    = this->_clientSecret;
-            doc[F("grant_type")]       = F("refresh_token");
-            doc[F("refresh_token")]    = this->_refreshToken;
+        JsonDocument request;
+        request[F("client_id")]        = _clientId;
+        request[F("client_secret")]    = _clientSecret;
+        request[F("grant_type")]       = F("refresh_token");
+        request[F("refresh_token")]    = _refreshToken;
 
-            httpCode = this->_postJsonRequest(F("/token"), doc);
+        _postJsonRequest(F("/token"), httpCode, response, request);
+        
+        if (httpCode != HTTP_CODE_OK) {
+            return ERROR;
         }
 
-        yield();
+        /*
+            access_token    : keep that
+            expires_in      : in seconds, lifetime of access_token
+            scope           : // useless
+            token_type      : Bearer
+        */
+        _accessToken = response[F("access_token")].as<String>();
 
-        GoogleOAuth2::Response ret = ERROR;
-
-        if (httpCode == HTTP_CODE_OK) {
-            const String payload = this->_http.getString();
-            deserializeJson(response, payload);
-            /*
-                access_token    : keep that
-                expires_in      : in seconds, lifetime of access_token
-                scope           : // useless
-                token_type      : Bearer
-            */
-            this->_accessToken = response[F("access_token")].as<String>();
-
-            ret = OK;
-        }
-
-        this->_http.end();
-
-        return ret;
+        return OK;
     }
 
     protected:
 
-    const int _postJsonRequest(const String path, const JsonDocument& doc) {
+    void _postJsonRequest(const String path, int& httpCode, JsonDocument& response, const JsonDocument& request)
+    {
         String payload;
-        serializeJson(doc, payload);
+        serializeJson(request, payload);
+
+        _httpClient.begin(_wifiClient, F("oauth2.googleapis.com"), 443, path, true);
+        _httpClient.addHeader(F("Content-Type"), F("application/json"));
         
-        this->_http.begin(this->_client, F("oauth2.googleapis.com"), 443, path, true);
-        this->_http.addHeader(F("Content-Type"), F("application/json"));
-        
-        return this->_http.POST(payload);
+        httpCode = _httpClient.POST(payload);
+        deserializeJson(response, _wifiClient);
+        _wifiClient.stop();
+        _httpClient.end();
     }
 
     const String _clientId;
@@ -158,6 +135,6 @@ class GoogleOAuth2 {
     String _refreshToken;
     String _accessToken;
 
-    HTTPClient _http;
-    WiFiClientSecure _client;
+    HTTPClient _httpClient;
+    WiFiClientSecure _wifiClient;
 };

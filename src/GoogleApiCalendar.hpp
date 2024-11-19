@@ -17,61 +17,50 @@ class GoogleApiCalendar : public GoogleOAuth2 {
     // GET https://www.googleapis.com/calendar/v3/users/me/calendarList?fields=items(id,summary)
     const GoogleOAuth2::Response getCalendars(JsonDocument& response)
     {
-        const int httpCode = this->_getRequest(F("/calendar/v3/users/me/calendarList?fields=items(id,summary)&minAccessRole=reader&showHidden=true"));
-
-        yield();
-
-        GoogleOAuth2::Response ret = ERROR;
+        int httpCode;
+        _getRequest(F("/calendar/v3/users/me/calendarList?fields=items(id,summary)&minAccessRole=reader&showHidden=true"), httpCode, response);
 
         if (httpCode == HTTP_CODE_OK) {
-            const String payload = this->_http.getString();
-            deserializeJson(response, payload);
             /*
             items[] =
                 id      : GoogleID
                 summary : title
             */
 
-            ret = OK;
+            return OK;
         }
 
-        this->_http.end();
-
-        return ret;
+        return ERROR;
     }
 
     const GoogleOAuth2::Response getEvents(JsonDocument& response, const String& calendarId, const String& timeMin, const String& timeMax)
     {
-        const String uri = this->_buildEventsUri(calendarId, timeMin, timeMax);
-        const int httpCode = this->_getRequest(uri);
-
-        yield();
-
-        GoogleOAuth2::Response ret = ERROR;
+        int httpCode;
+        const String uri = _buildEventsUri(calendarId, timeMin, timeMax);
+        _getRequest(uri, httpCode, response);
 
         if (httpCode == HTTP_CODE_OK) {
-            const String payload = this->_http.getString();
-            deserializeJson(response, payload);
             /*
             items[] =
                 summary : title
             */
 
-            ret = OK;
+            return OK;
         }
 
-        this->_http.end();
-
-        return ret;
+        return ERROR;
     }
 
     protected:
 
-    const int _getRequest(const String path) {
-        this->_http.begin(this->_client, F("www.googleapis.com"), 443, path, true);
-        this->_http.addHeader(F("Authorization"), FPSTR("Bearer ") + this->_accessToken);
+    void _getRequest(const String path, int& httpCode, JsonDocument& response) {
+        _httpClient.begin(_wifiClient, F("www.googleapis.com"), 443, path, true);
+        _httpClient.addHeader(F("Authorization"), FPSTR("Bearer ") + _accessToken);
 
-        return this->_http.GET();
+        httpCode = _httpClient.GET();
+        deserializeJson(response, _wifiClient);
+        _wifiClient.stop();
+        _httpClient.end();
     }
 
     const String _buildEventsUri(const String& calendarId, const String& timeMin, const String& timeMax) const

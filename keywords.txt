@@ -6,6 +6,8 @@ isLinked                    KEYWORD2
 getEventList                KEYWORD2
 hasExpired                  KEYWORD2
 setCalendar                 KEYWORD2
+startQuietRegistration      KEYWORD2
+getQuietUserCode            KEYWORD2
 startRegistration           KEYWORD2
 maintain                    KEYWORD2
 handleRegistration          KEYWORD2
