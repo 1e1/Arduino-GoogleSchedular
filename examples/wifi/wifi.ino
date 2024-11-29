@@ -78,7 +78,7 @@ TimestampRFC3339Ntp ntp(udp);
 GoogleSchedular gs(GOOGLE_API_CLIENT_ID, GOOGLE_API_CLIENT_SECRET, ntp);
 
 
-ShortTimer8<ShortTimer_precision_t::P_minutes> timer1mn;
+ShortTimer8<ShortTimerPrecision::P_minutes> timer1mn;
 
 
 void setup()
@@ -137,7 +137,7 @@ void setup()
         Serial.print("|- waiting for validation");
         {
             uint8_t line_size = 25;
-            FastTimer<FastTimer_precision_t::P_1s_4m> timer1s;
+            FastTimer<FastTimerPrecision::P_1s_4m> timer1s;
             do {
                 timer1s.update();
                 if (timer1s.isTickBy64()) {
