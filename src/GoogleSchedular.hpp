@@ -197,17 +197,17 @@ class GoogleSchedular : public GoogleApiCalendar {
         GoogleOAuth2::Response ret;
         JsonDocument doc;
         {
-            const char org = ts[17];
+            const char org = ts[18];
             String t0 = ts;
             t0.setCharAt(18, '0');
             ts.setCharAt(18, '9');
 
             ret = getEvents(doc, _calendarId, t0, ts);
 
-            ts.setCharAt(17, org);
+            ts.setCharAt(18, org);
         }
 
-        if (ret == GoogleOAuth2::OK) {
+        if (ret != GoogleOAuth2::OK) {
             _state = State::ERROR;
         } else {
             _eventList.clear();
