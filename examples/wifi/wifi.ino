@@ -73,9 +73,8 @@ const char* NTP_HOST = "2.europe.pool.ntp.org";
 const String CALENDAR_NAME = "ArduinoRelay";
 
 
-WiFiUDP udp;
-TimestampRFC3339Ntp ntp(udp);
-GoogleSchedular gs(GOOGLE_API_CLIENT_ID, GOOGLE_API_CLIENT_SECRET, ntp);
+TimestampNtp<WiFiUDP> ntp;
+GoogleSchedular gs(GOOGLE_API_CLIENT_ID, GOOGLE_API_CLIENT_SECRET, &ntp);
 
 
 ShortTimer8<ShortTimerPrecision::P_minutes> timer1mn;
@@ -108,7 +107,7 @@ void setup()
 
     // start UDP
     {
-        udp.begin(LOCAL_PORT);
+        ntp.begin(LOCAL_PORT);
         ntp.request(NTP_HOST);
         do {
             delay(10);

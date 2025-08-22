@@ -37,9 +37,12 @@ Create the Schedular with a NTP client for knowing the expiration times,
 and the current datetime when requesting the Google Calendar. 
 
 ```
-WiFiUDP udp;
-TimestampRFC3339Ntp ntp(udp);
-GoogleSchedular gs(GOOGLE_API_CLIENT_ID, GOOGLE_API_CLIENT_SECRET, ntp);
+TimestampNtp<WiFiUDP> ntp;
+GoogleSchedular gs(GOOGLE_API_CLIENT_ID, GOOGLE_API_CLIENT_SECRET, &ntp);
+
+// ...
+
+ntp.begin();
 ```
 
 Get user temporary code for merging the user account to this session.
@@ -119,3 +122,10 @@ Visit:
 - https://developers.google.com/calendar/api/guides/quota
 - https://cloud.google.com/api-keys/docs/quotas
 
+
+
+## Infos
+
+Required https://github.com/1e1/Arduino-FastTimer
+
+A concrete example on https://github.com/1e1/arduino-webcontroller-relay

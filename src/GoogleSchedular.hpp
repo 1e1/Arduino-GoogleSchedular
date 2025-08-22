@@ -5,6 +5,7 @@
 
 
 #include <Arduino.h>
+#include <Udp.h>
 #if defined(ESP8266)
   #include <ESP8266WiFi.h>
   #include <ESP8266HTTPClient.h>
@@ -41,29 +42,29 @@ class GoogleSchedular : public GoogleApiCalendar {
     - E: Failed => has Error
     */
     enum State {
-        VOID          = B0000,
-        INIT          = B0010,
-        AUTHENTICATED = B0110,
-        LINKED        = B1110,
-        ERROR         = B0001,
+        VOID          = 0b0000,
+        INIT          = 0b0010,
+        AUTHENTICATED = 0b0110,
+        LINKED        = 0b1110,
+        ERROR         = 0b0001,
     };
 
     static constexpr uint8_t EXPIRATION_TIME_MARGIN = 64;
 
 
-    GoogleSchedular(const String& clientId, const String& clientSecret, TimestampRFC3339Ntp& ts) : GoogleApiCalendar(clientId, clientSecret), _timestamp(ts), _expirationTimestamp(0), _state(State::VOID), _eventList() {}
+    GoogleSchedular(const String& clientId, const String& clientSecret, Ntp* ntp) : GoogleApiCalendar(clientId, clientSecret), _ntp(ntp), _expirationTimestamp(0), _state(State::VOID), _eventList() {}
 
-
-    const boolean hasFailed(void) const       { return _state == State::ERROR; }
-    const boolean isInitialized(void) const   { return _state == State::INIT;  }
-    const boolean isAuthenticated(void) const { return _state & B0100; }
-    const boolean isLinked(void) const        { return _state == State::LINKED; }
+    const bool hasFailed(void) const       { return _state == State::ERROR; }
+    const bool isInitialized(void) const   { return _state == State::INIT;  }
+    const bool isAuthenticated(void) const { return _state & 0b0100; }
+    const bool isLinked(void) const        { return _state == State::LINKED; }
 
     std::list<String>getEventList(void) const { return _eventList; }
 
-    const boolean hasExpired(void)
+
+    const bool hasExpired(void)
     {
-        return _expirationTimestamp < _timestamp.getTimestampUnix();
+        return _expirationTimestamp < _ntp->time();
     }
 
     void setCalendar(String calendarName)
@@ -154,7 +155,7 @@ class GoogleSchedular : public GoogleApiCalendar {
 
     void handleRegistration(void)
     {
-        if (_expirationTimestamp < _timestamp.getTimestampUnix()) {
+        if (_expirationTimestamp < _ntp->time()) {
             JsonDocument doc;
             const GoogleOAuth2::Response ret = pollAuthorization(doc);
 
@@ -178,7 +179,7 @@ class GoogleSchedular : public GoogleApiCalendar {
         }
     }
 
-    void maintainAuthorization(const boolean force=false)
+    void maintainAuthorization(const bool force=false)
     {
         if (force || hasExpired()) {
             JsonDocument doc;
@@ -239,18 +240,18 @@ class GoogleSchedular : public GoogleApiCalendar {
 
     void _setExpirationTimestamp(const uint16_t expiresInSeconds)
     {
-        _expirationTimestamp = _timestamp.getTimestampUnix(expiresInSeconds);
+        _expirationTimestamp = _ntp->time() + expiresInSeconds;
     }
 
     void _setSecureExpirationTimestamp(const uint16_t expiresInSeconds)
     {
-        _expirationTimestamp = _timestamp.getTimestampUnix(expiresInSeconds - GoogleSchedular::EXPIRATION_TIME_MARGIN);
+        _expirationTimestamp = _ntp->time() + expiresInSeconds - GoogleSchedular::EXPIRATION_TIME_MARGIN;
     }
 
     
     State _state;
     String _calendarId;
-    TimestampRFC3339Ntp& _timestamp;
+    Ntp* _ntp = nullptr;
     unsigned long _expirationTimestamp;
     std::list<String> _eventList;
 
