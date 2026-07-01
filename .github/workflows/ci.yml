@@ -1,0 +1,90 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  native-tests:
+    name: native tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        cxx: [g++, clang++]        # gnu++11 on both compilers
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Install header-only deps from the Arduino registry
+        run: |
+          arduino-cli config init
+          arduino-cli lib update-index
+          arduino-cli lib install ArduinoJson FastTimer
+      - name: Run native unit tests
+        env:
+          CXX: ${{ matrix.cxx }}
+        run: |
+          LIB="$(arduino-cli config get directories.user)/libraries"
+          FASTTIMER_SRC="$LIB/FastTimer/src" \
+          ARDUINOJSON_SRC="$LIB/ArduinoJson/src" \
+          ./test/run.sh
+
+  compile-esp8266:
+    name: compile examples (ESP8266)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Arduino cores
+        uses: actions/cache@v4
+        with:
+          path: ~/.arduino15
+          key: arduino-esp8266-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: arduino-esp8266-
+      - uses: arduino/compile-sketches@v1
+        with:
+          fqbn: esp8266:esp8266:nodemcuv2
+          platforms: |
+            - name: esp8266:esp8266
+              source-url: https://arduino.esp8266.com/stable/package_esp8266com_index.json
+          libraries: |
+            - source-path: ./          # this repo == the library under test
+            - name: ArduinoJson
+            - name: FastTimer
+          sketch-paths: |
+            - examples/wifi
+            - examples/wifi_persistent
+          enable-warnings-report: true
+          verbose: true
+
+  compile-esp32:
+    name: compile example (ESP32)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Arduino cores
+        uses: actions/cache@v4
+        with:
+          path: ~/.arduino15
+          key: arduino-esp32-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: arduino-esp32-
+      - uses: arduino/compile-sketches@v1
+        with:
+          fqbn: esp32:esp32:esp32
+          platforms: |
+            - name: esp32:esp32
+              source-url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          libraries: |
+            - source-path: ./
+            - name: ArduinoJson
+            - name: FastTimer
+          sketch-paths: |
+            - examples/wifi_persistent_esp32
+          enable-warnings-report: true
+          verbose: true
+
+  lint:
+    name: arduino-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/arduino-lint-action@v1
+        with:
+          library-manager: update
+          compliance: strict
