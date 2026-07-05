@@ -178,7 +178,7 @@ void setup()
         Serial.println("|- load events");
         {
             ntp.syncRFC3339();
-            String ts = ntp.getTimestampRFC3339();
+            const char* ts = ntp.c_str(); // zero-copy, no heap allocation
             gs.syncAt(ts);
             for(String e : gs.getEventList()) {
                 Serial.println("|- " + e);
@@ -201,7 +201,10 @@ void loop()
         digitalWrite(LED_BUILTIN, LOW);
 
         ntp.syncRFC3339(timer1mn.getElapsedTime());
-        String ts = ntp.getTimestampRFC3339();
+        // zero-copy timestamp: valid until the next syncRFC3339(). Avoiding a
+        // per-loop String allocation keeps the heap from fragmenting over long
+        // uptimes (see GoogleSchedular::syncAt).
+        const char* ts = ntp.c_str();
 
         Serial.print("-- ");
         Serial.println(ts);
@@ -230,7 +233,7 @@ void crash()
 {
     Serial.println("*** CRASH ***");
     
-    bool isLedOn; 
+    bool isLedOn = false;
     while (true) {
         isLedOn = !isLedOn;
         if (isLedOn) {

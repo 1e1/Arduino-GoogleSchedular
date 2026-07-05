@@ -1,27 +1,32 @@
-GoogleSchedular	            KEYWORD1    DATA_TYPE
-hasFailed                   
-isInitialized               KEYWORD2
-isAuthenticated             KEYWORD2
-isLinked                    KEYWORD2
-getEventList                KEYWORD2
-hasExpired                  KEYWORD2
-setCalendar                 KEYWORD2
-startQuietRegistration      KEYWORD2
-getQuietUserCode            KEYWORD2
-startRegistration           KEYWORD2
-maintain                    KEYWORD2
-handleRegistration          KEYWORD2
-maintainAuthorization       KEYWORD2
-syncAt                      KEYWORD2
+GoogleSchedular	KEYWORD1	DATA_TYPE
+hasFailed	KEYWORD2
+isInitialized	KEYWORD2
+isAuthenticated	KEYWORD2
+isLinked	KEYWORD2
+isAuthInvalid	KEYWORD2
+getEventList	KEYWORD2
+hasExpired	KEYWORD2
+setCalendar	KEYWORD2
+startQuietRegistration	KEYWORD2
+getQuietUserCode	KEYWORD2
+startRegistration	KEYWORD2
+maintain	KEYWORD2
+handleRegistration	KEYWORD2
+maintainAuthorization	KEYWORD2
+syncAt	KEYWORD2
+isValidTimestamp	KEYWORD2
 
 
-GoogleApiCalendar	        KEYWORD1    DATA_TYPE
-getCalendars                KEYWORD2
-getEvents                   KEYWORD2
+GoogleApiCalendar	KEYWORD1	DATA_TYPE
+getCalendars	KEYWORD2
+getEvents	KEYWORD2
 
 
-GoogleOAuth2	            KEYWORD1    DATA_TYPE
-Response	                KEYWORD3
-requestDeviceAndUserCode    KEYWORD2
-pollAuthorization	        KEYWORD2
-refreshAccessToken	        KEYWORD2
+GoogleOAuth2	KEYWORD1	DATA_TYPE
+Response	KEYWORD3
+getRefreshToken	KEYWORD2
+setRefreshToken	KEYWORD2
+requestDeviceAndUserCode	KEYWORD2
+pollAuthorization	KEYWORD2
+refreshAccessToken	KEYWORD2
+lastAuthHttpCode	KEYWORD2
